@@ -1,4 +1,4 @@
-#PyCirc
+# PyCirc
 * **PyCirc** is a new Python package for modeling and simulating simple Logic Circuits
 specifically designed for educational use in introductory computation and digital logic college course.
 * As such, it was primarily tuned for readability, convenience, fast learning curve, and less for speed or industrial production.
