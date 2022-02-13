@@ -13,11 +13,12 @@ and electronic design.
   * It is planned to be use in such a course by the author (Hebrew book at http://samyzaf.com/afl.pdf).
   * It enables students to easily model and experiment with typical logic circuits, verify circuits designs,
      design and test circuits, and for problem solving.
-  * It does provide an opportunity for students to develop practice some programming skills
+  * It does provide an opportunity for students to develop and practice programming skills
      while covering the theoretical computation course.
 
-* Substantial documentation is included in the following notebook:
+* Substantial documentation is included in the following Jupyter notebook:
   * https://samyzaf.com/pycirc/pycirc.html
   * Google Colaboratory notebook from:
     * https://samyzaf.com/pycirc/pycirc.ipynb
-    * You may copy it to your space and use it with Google Colaboratory or a a local Jupyter notebook
+    * You may copy this notebook to your space and use it with Google
+      Colaboratory or a a local Jupyter notebook
