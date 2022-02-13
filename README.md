@@ -20,4 +20,4 @@ and electronic design.
   * https://samyzaf.com/pycirc/pycirc.html
   * Google Colaboratory notebook from:
     * https://samyzaf.com/pycirc/pycirc.ipynb
-    * Copy it to your space and use it with Google Colaboratory or a a local Jupyter notebook
+    * You may copy it to your space and use it with Google Colaboratory or a a local Jupyter notebook
