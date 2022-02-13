@@ -19,7 +19,7 @@
 
 * Substantial documentation is included in the following Jupyter notebook:
   * https://samyzaf.com/pycirc/pycirc.html
-  * Google Colaboratory notebook from:
+  * Google Colaboratory notebook:
     * https://samyzaf.com/pycirc/pycirc.ipynb
       * Save as file and uppload to your Google Colab space.
       * Or simply save to your local drive and load it as a Jupyter notebook
