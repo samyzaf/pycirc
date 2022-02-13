@@ -21,5 +21,5 @@
   * https://samyzaf.com/pycirc/pycirc.html
   * Google Colaboratory notebook from:
     * https://samyzaf.com/pycirc/pycirc.ipynb
-    * You may copy this notebook to your space and use it with Google
-      Colaboratory or a a local Jupyter notebook.
+      * Save as file and uppload to your Google Colab space.
+      * Or simply save to your local drive and load it as a Jupyter notebook
