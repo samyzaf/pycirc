@@ -1,7 +1,7 @@
 import re
 from random import randint
 from itertools import product
-from copy import deepcopy
+from copy import copy
 
 namereg = r"^[a-zA-Z][_a-zA-Z0-9]*$"
 namepat = re.compile(namereg)
@@ -21,7 +21,7 @@ class Assign(dict):
         elif isinstance(bits, str):
             bits = [int(v) for v in bits]
         elif isinstance(bits, list) or isinstance(bits, tuple):
-            _bits = deepcopy(bits)
+            _bits = copy(bits)
             bits = []
             for b in _bits:
                 if b is None:
@@ -54,7 +54,7 @@ class Assign(dict):
             return "".join(str(i) for i in b)
 
     def __add__(self, other):
-        names = deepcopy(self.names)
+        names = self.names.copy()
         for name in other.names:
             if name in names:
                 continue
@@ -66,6 +66,15 @@ class Assign(dict):
             else:
                 bits.append(other[name])
         return Assign(names, bits)
+
+    def __setitem__(self, name, v):
+        if not name in self.names:
+            raise Exception("Invalid name for assignment (not in name domain): %s" % (name,))
+
+        super(Assign, self).__setitem__(name, v)
+
+    #def __getitem__(self, y):
+    #    return self.o[y]
 
     def __call__(self, names=None):
         return self.bits(names, as_list=True)
@@ -199,5 +208,4 @@ def expand(group):
             inp = pref + str(k)
             names.append(inp)
     return names
-
 
