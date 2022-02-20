@@ -5,8 +5,8 @@
 * It is a light weight package especially designed for small scale circuits,
   such as those that are studied in introductory academic courses on the theory of computation
   and digital/electronic design.
-* Its main characteristic is that a digital circuit can be easily defined by a series of simple Python commands,
-  rather than an external static language, which adds more overhead and .
+* Its main characteristic is that a logic circuit can be easily defined by a series of simple Python commands,
+  rather than an external static language.
 * It is inteneded to be used by novice Python programmers and non-programmers (through tools such as Jupyter notebook).
 * But it allows more experienced Python programmers can make more sophisticated use with it.
 * It can be a useful companion for theoretical course on computation models and languages who wish also to engage
