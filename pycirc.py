@@ -4,6 +4,7 @@ import networkx as nx
 from copy import deepcopy
 from .util import *
 import gc
+from fnmatch import fnmatch
 #import inspect
 
 class Cell(object):
@@ -68,10 +69,10 @@ class PyCirc(nx.MultiDiGraph):
         self.gates = sorted(self.nodes, key=lambda n: n.id)
         dif1 = tuple(set(gates) - set(self.gates))
         if dif1:
-            raise Exception("Isolated gates: %s" % dif1)
+            raise Exception("Isolated gates: %s" % [g.name for g in dif1])
         dif2 = tuple(set(self.gates) - set(gates))
         if dif2:
-            raise Exception("Missing gates: %s" % dif2)
+            raise Exception("Missing gates: %s" % [g.name for g in dif2])
         self.depth = 0
         self.validity_check()
         self.input = []
@@ -134,7 +135,7 @@ class PyCirc(nx.MultiDiGraph):
                 #print("outset", outset)
                 dif = outset - out_pins
                 if dif:
-                    print("ATTENTION: some outputs are dangling! %s : %s" % (gate.name, dif))
+                    print("ATTENTION: some outputs are dangling! %s (%s) : %s" % (gate.name, gate.cell.name, dif))
         try:
             C = nx.find_cycle(self, orientation="original")
             if C:
@@ -228,6 +229,25 @@ class PyCirc(nx.MultiDiGraph):
         while self.curr_layer <= self.depth:
             self.step()
 
+    def dangling_pins(self):
+        dang_pins = []
+        for gate in self.gates:
+            if gate.type == "inp" or gate.type == "out":
+                continue
+            out_edges = self.out_edges(gate, data=True)
+            out_pins = set()
+            for e in out_edges:
+                source, target, data = e
+                out_pins.add(data["source_pin"])
+            outset = set(gate.cell.output)
+            #print("out_edges=", str(gate), self.out_edges(gate))
+            #print("output of gate", str(gate), "=", gate.cell.output)
+            #print("out_pins", str(out_pins))
+            #print("outset", outset)
+            for p in outset - out_pins:
+                dang_pins.append(f"{gate.name}/{p}")
+        return dang_pins
+
     def getframes(self, d):
         self.reset()
         f0 = self.getframe()
@@ -252,21 +272,36 @@ class PyCirc(nx.MultiDiGraph):
         return f
 
     def __assign_depth(self):
-        self.layer = dict()
-        for gate in self.gates:
-            gate.depth = self.__depth(gate)
+        dp = dict()
+        for g in self.gates:
+            dp[g] = 0
+        ctr = 0
+        n = 2 * len(self.gates)
+        while True:
+            ctr += 1
+            stable = True
+            for gate in self.gates:
+                ingates = self.in_gates(gate)
+                if ingates:
+                    old = dp[gate]
+                    dp[gate] = max(dp[g] for g in ingates) + 1
+                    if not old == dp[gate]:
+                        stable = False
+            if stable:
+                break
+            if ctr > n:
+                print("Could not assign depth. Check graph. ctr=", ctr)
+
+        for g in self.gates:
+            g.depth = dp[g]
         if self.gates:
             self.depth = max(g.depth for g in self.gates)
+
+        self.layer = dict()
         for l in range(self.depth+1):
             self.layer[l] = []
         for g in self.gates:
             self.layer[g.depth].append(g)
-
-    def __depth(self, g):
-        if not self.in_edges(g):
-            return 0
-        else:
-            return max(self.__depth(n) for n in self.in_gates(g)) + 1
 
     def __call__(self, a):
         self.reset()
@@ -513,6 +548,13 @@ class GateFactory(object):
             raise Exception("Cell %s not found" % (name,))
         return deepcopy(self.lib[name])
 
+    def list(self, pattern='*'):
+        res = []
+        for name in self.lib:
+            if fnmatch(name, pattern):
+                res.append(name)
+        return res
+
     def exists(self, name):
         if name in self.lib:
             return True
@@ -523,4 +565,3 @@ class GateFactory(object):
 # Users can add more libraries if they need to.
 # Future dev may enable multiple libraries ... for now this is good to start with.
 pycircLib = GateFactory()
-
