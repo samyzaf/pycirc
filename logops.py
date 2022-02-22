@@ -73,4 +73,3 @@ def MUX(a, output="y"):
     i = int(s, 2)
     o = Assign(output, a[bits[i]])
     return o
-
