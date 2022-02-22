@@ -14,6 +14,20 @@ def set_libpath(pathlist):
     global libpath
     libpath = pathlist
 
+def list_lib_circs():
+    global libpath
+    circs = []
+    for d in libpath:
+        if "https://" in d:
+            files = list_url_files(url)
+        else:
+            files = os.listdir(d)
+        for file in files:
+            if fnmatch(file, '*.py'):
+                circ = file[:-3]
+                circs.append(circ)
+    return circs
+
 # Load cell file to libraries libs.
 # Usually a file contains one cell definition,
 # but may contain multiple cells as well.
@@ -52,6 +66,11 @@ def load(cell, libs=[pycircLib]):
     #    return pycircLib.get(cell)
     #else:
     #    raise Exception("Cell %s not found in library path: %s" % (cell,libpath))
+
+def need(cellname):
+    if pycircLib.exists(cellname):
+        return
+    load(cellname)
 
 def logcirc(name, gates, wires, register=True):
     circ = PyCirc(name, gates, wires)
@@ -124,10 +143,16 @@ pycircLib.add_box(name="mux1", operator=MUX, input=["s1", "x0", "x1"], output=["
 #pycircLib.add_box(name="mux2", operator=MUX, input=["s1", "s2", "x0", "x1", "x2", "x3"], output=["y"], depth=4)
 #pycircLib.add_box(name="mux3", operator=MUX, input=["s1", "s2", "s3", "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"], output=["y"], depth=5)
 
-# We can many more MUX cells with the following loop
+# We can can many more MUX cells with the following loop
 # for k in range(1,10):
 #     name = "mux" + str(k)
 #     inp = "x<0:%s> ; s<1:%s>" % (2**k - 1, k)
 #     pycircLib.add_box(name=name, operator=MUX, input=inp, output=["y"])
 
 
+def list_url_files(url):
+    urlpath = urlopen(url)
+    string = urlpath.read().decode('utf-8')
+    pattern = re.compile('[a-zA-Z0-9_]+.py') #the pattern actually creates duplicates in the list
+    filelist = list(set(pattern.findall(string)))
+    return filelist
