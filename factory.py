@@ -2,6 +2,7 @@ import os
 from .logops import *
 from .pycirc import *
 from urllib.request import urlopen, Request
+from collections import deque
 #import requests
 
 # A client code must define the library path
@@ -10,9 +11,18 @@ from urllib.request import urlopen, Request
 # Example:
 #   set_libpath([os.path.join(os.path.realpath("."), "lib"), "https://samyzaf.com/pycirc/lib", "d:/eda/pycirc/lib"]
 
+libpath = deque()
+
 def set_libpath(pathlist):
     global libpath
-    libpath = pathlist
+    libpath.clear()
+    for p in pathlist:
+        libpath.append(p)
+
+def libpath_append(path):
+    global libpath
+    if not path in libpath:
+        libpath.append(p)
 
 def list_lib_circs():
     global libpath
@@ -53,6 +63,7 @@ def load(cell, libs=[pycircLib]):
                 break
             except:
                 pass
+                #print("Failed to load %s" % (libfile,)
         else:
             if os.path.isfile(libfile):
                 with open(libfile) as f:
