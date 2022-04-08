@@ -3,8 +3,11 @@ import os
 import networkx as nx
 from copy import deepcopy
 from .util import *
-import gc
+from . import cfg
+from .cfg import set_path, path_add, path_del
+from .logops import *
 from fnmatch import fnmatch
+from urllib.request import urlopen, Request
 #import inspect
 
 class Cell(object):
@@ -62,15 +65,19 @@ class PyCirc(nx.MultiDiGraph):
     def __init__(self, name, gates, wires, **attr):
         super(PyCirc, self).__init__()
         self.name = name
+        #print(f"PyCirc: name={name}\n gates={[g.name for g in gates]}\n wires={[(w.source,w.target) for w in wires]}")
         self.__name_map = dict()
         self.__edge_map = dict()
         self.read_wires(wires)
         self.wires = wires
         self.gates = sorted(self.nodes, key=lambda n: n.id)
-        dif1 = tuple(set(gates) - set(self.gates))
+
+        G1 = set([g.name for g in gates])
+        G2 = set([g.name for g in self.gates])
+        dif1 = tuple(G1 - G2)
         if dif1:
-            raise Exception("Isolated gates: %s" % [g.name for g in dif1])
-        dif2 = tuple(set(self.gates) - set(gates))
+            raise Exception("Isolated gates: %s" % dif1)
+        dif2 = tuple(G2 - G1)
         if dif2:
             raise Exception("Missing gates: %s" % [g.name for g in dif2])
         self.depth = 0
@@ -139,7 +146,7 @@ class PyCirc(nx.MultiDiGraph):
         try:
             C = nx.find_cycle(self, orientation="original")
             if C:
-                print("No cycles allowed in a directed multigraph!")
+                print("No cycles allowed in a circuit!")
         except nx.NetworkXNoCycle:
             print("Cell = %s: Validity check: OK." % (self.name,))
 
@@ -318,11 +325,21 @@ class PyCirc(nx.MultiDiGraph):
         gts = "Gates: " + " : ".join([str(n) for n in self.logic_gates])
         return inp + "\n" + out + "\n" + gts
 
+    @classmethod
+    def delete(cls, key):
+        del cls.__circmap[key]
+
+    @classmethod
+    def names(cls):
+        return cls.__circmap.keys()
+
+    #def __del__(self):
+    #    del self.__class__.__circmap[self.name]
+
 #-------------------------------------------------------------------------------
 
 class Gate(object):
     id = 0
-    markers = [0,0]
     map = dict()
     def __class_getitem__(cls, key):
         return cls.map[key]
@@ -339,6 +356,10 @@ class Gate(object):
         self.id = self.__class__.id
         self.__class__.id += 1
         self.__class__.map[self.name] = self
+        if cfg.circd:
+            cellname = [*cfg.circd.keys()][-1]
+            cfg.circd[cellname][0].append(self)
+        #print(f"Gate: {self.name}, cellname={cellname}")
         ##globals()[self.name] = self
         ##thiscell = sys.cells[__name__]
         ##curr_cell = sys.cells[__name__]
@@ -441,6 +462,9 @@ class Wire(object):
         self.id = self.__class__.id
         self.__class__.id += 1
         self.__class__.map[self.name] = self
+        if cfg.circd:
+            cellname = [*cfg.circd.keys()][-1]
+            cfg.circd[cellname][1].append(self)
 
     def __checks(self):
         g1 = self.gate1
@@ -525,9 +549,12 @@ class GateFactory(object):
         self.lib[name] = cell
         return cell
 
-    def add_box(self, name, operator, input, output, depth=1, type="var"):
+    def remove(self, cellname):
+        del self.lib[cellname]
+
+    def add_box(self, name, operator, input, output, depth=1, type="box"):
         if operator is None:
-            raise Exception("You must provide a valid operator to add a black box!")
+            raise Exception("You must provide a valid operator to add a box!")
         if input is None:
             input = []
         elif isinstance(input, str):
@@ -542,17 +569,24 @@ class GateFactory(object):
 
     def get(self, name):
         if not name in self.lib:
+            need(name)
             #try:
-            #    load_cell(name)
+            #    load(name)
             #except:
-            raise Exception("Cell %s not found" % (name,))
+            #raise Exception("Cell %s not found" % (name,))
         return deepcopy(self.lib[name])
 
-    def list(self, pattern='*'):
+    def list(self, pattern='*', type=""):
         res = []
+        if type=="":
+            types = ['circ', 'box']
+        else:
+            types = [type]
         for name in self.lib:
             if fnmatch(name, pattern):
-                res.append(name)
+                cell = self.lib[name]
+                if cell.type in types:
+                    res.append(name)
         return res
 
     def exists(self, name):
@@ -561,7 +595,163 @@ class GateFactory(object):
         else:
             return False
 
+    def clear(self):
+        self.lib.clear()
+
 # We define our single library of cells for testing our classes
 # Users can add more libraries if they need to.
 # Future dev may enable multiple libraries ... for now this is good to start with.
 pycircLib = GateFactory()
+
+#---------------------------------------------------
+
+# A client code must define the library path
+# The library path consists of a list of directories or URL's
+# from which PyCirc can find a cell.
+# Example:
+#   set_path([os.path.join(os.path.realpath("."), "lib"), "https://samyzaf.com/pycirc/lib", "d:/eda/pycirc/lib"]
+
+def list_lib_circs(pat="*"):
+    circs = []
+    for d in cfg.path:
+        if "https://" in d:
+            files = list_url_files(d)
+        else:
+            files = os.listdir(d)
+        for file in files:
+            if fnmatch(file, '*.py') and fnmatch(file[:-3], pat):
+                circ = file[:-3]
+                circs.append(circ)
+    return circs
+
+# Find circuit file in library
+def find(circ):
+    if not cfg.path:
+        print("Cell library path not defined")
+        print("Please define cell library path: set_path([dir1, dir2, url1, ...])")
+        raise Exception("Cell library path empty!")
+        
+    print("path =", cfg.path)
+
+    for dir in cfg.path:
+        dir = dir.rstrip("/")
+        libfile = "%s/%s.py" % (dir, circ)
+        if "https://" in libfile:
+            try:
+                u = urlopen(libfile)
+                return libfile
+            except:
+                pass
+        elif os.path.isfile(libfile):
+            return os.path.abspath(libfile)
+
+    return None
+
+# Load circuit file to libraries libs.
+def load(circ, libs=[pycircLib]):
+    libfile = find(circ)
+    #print("path =", cfg.path)
+    if not libfile:
+        raise Exception("Circuit %s not found in library path: %s" % (circ, cfg.path))
+
+    if "https://" in libfile:
+        u = urlopen(libfile)
+        code = u.read().decode('utf-8')
+    else:
+        with open(libfile) as f:
+            code = f.read()
+
+    Define(circ)
+    exec(code)
+    ref = EndDef()
+    print("Loaded circuit %s from: %s" % (circ, libfile))
+    return ref
+
+def unload(circ):
+    pycircLib.del_cell(circ)
+    PyCirc.delete(circ.name)
+    del circ
+
+def need(circname):
+    if pycircLib.exists(circname):
+        return
+    c = load(circname)
+    return c
+
+def logcirc(name, gates, wires, register=True):
+    circ = PyCirc(name, gates, wires)
+    if register:
+        pycircLib.add_circ(circ)
+    return circ
+
+# Start definition of a Logic Circuit
+def Define(circname):
+    #print("circd Def=", cfg.circd.keys(), "circname=", circname)
+    sys.stdout.flush()
+    if circname in cfg.circd:
+        raise Exception("Looks like you already started a definition of %s but not finished?" % (circname,))
+    cfg.circd[circname] = [[],[]]
+
+# Finalize PyCirc object and add it to libraries in list libs
+# Use libs = [] to not add it to any library
+# Currently we have only one library pycircLib but future dev may have multiple ...
+def EndDef(libs=[pycircLib]):
+    #print("circd before=", cfg.circd.keys())
+    circname,(gates,wires) = cfg.circd.popitem()
+    #print("circd after=",cfg.circd.keys())
+    #print(f"circname={circname}")
+    #print([g.name for g in gates])
+    #print([(w.source,w.target) for w in wires])
+    circ = PyCirc(circname, gates, wires)
+    for lib in libs:
+        lib.add_circ(circ)
+    #print("circ stack =", cfg.circd)
+    return circ
+
+#-------------------------------------------------------------------------
+
+# These are standard logical cells which we add to pycircLib first:
+def load_builtin_box_cells():
+    pycircLib.clear()
+    pycircLib.add_box(name="zero", operator=ZERO, input=[], output=["y"], type="const", depth=0)
+    pycircLib.add_box(name="one",  operator=ONE,  input=[], output=["y"], type="const", depth=0)
+    pycircLib.add_box(name="not",  operator=NOT,  input=["x"], output=["y"])
+    pycircLib.add_box(name="and2", operator=AND,  input="x<1:2>", output=["y"])
+    pycircLib.add_box(name="and3", operator=AND,  input="x<1:3>", output=["y"])
+    pycircLib.add_box(name="and4", operator=AND,  input="x<1:4>", output=["y"])
+    pycircLib.add_box(name="and5", operator=AND,  input="x<1:5>", output=["y"])
+    pycircLib.add_box(name="and6", operator=AND,  input="x<1:6>", output=["y"])
+    pycircLib.add_box(name="and7", operator=AND,  input="x<1:7>", output=["y"])
+    pycircLib.add_box(name="and8", operator=AND,  input="x<1:8>", output=["y"])
+    pycircLib.add_box(name="and9", operator=AND,  input="x<1:9>", output=["y"])
+    
+    # We can also use loops to add cells to our cell library
+    for k in range(2,21):
+        inp = "x<1:%s>" % (k,)
+        name = "or" + str(k)
+        pycircLib.add_box(name, operator=OR, input=inp, output=["y"])
+        name = "xor" + str(k)
+        pycircLib.add_box(name, operator=XOR, input=inp, output=["y"])
+        name = "nor" + str(k)
+        pycircLib.add_box(name, operator=NOR, input=inp, output=["y"])
+        name = "nand" + str(k)
+        pycircLib.add_box(name, operator=NAND, input=inp, output=["y"])
+    
+    pycircLib.add_box(name="mux1", operator=MUX, input=["s1", "x0", "x1"], output=["y"], depth=3)
+    # The following will be defined by a PyCirc circuit:
+    #pycircLib.add_box(name="mux2", operator=MUX, input=["s1", "s2", "x0", "x1", "x2", "x3"], output=["y"], depth=4)
+    #pycircLib.add_box(name="mux3", operator=MUX, input=["s1", "s2", "s3", "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"], output=["y"], depth=5)
+    
+    # We can can many more MUX cells with the following loop
+    # for k in range(1,10):
+    #     name = "mux" + str(k)
+    #     inp = "x<0:%s> ; s<1:%s>" % (2**k - 1, k)
+    #     pycircLib.add_box(name=name, operator=MUX, input=inp, output=["y"])
+
+# A small utility for listing files in a url directory
+def list_url_files(url):
+    urlpath = urlopen(url)
+    string = urlpath.read().decode('utf-8')
+    pattern = re.compile('[a-zA-Z0-9_]+.py') #the pattern actually creates duplicates in the list
+    filelist = list(set(pattern.findall(string)))
+    return filelist
