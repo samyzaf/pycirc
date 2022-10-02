@@ -18,9 +18,9 @@
   * It does provide an opportunity for students to develop and practice programming skills
      while covering the theoretical computation course.
 * Substantial documentation is included in the following Jupyter notebook:
-  * https://samyzaf.com/pycirc/pycirc.html
+  * https://samyzaf.com/pycirc/pycircpl.html
   * Google Colaboratory notebook:
-    * https://github.com/samyzaf/pycirc/blob/main/pycirc.ipynb
+    * https://github.com/samyzaf/pycirc/blob/main/pycircpl.ipynb
       * Save as file and uppload to your Google Colab space.
       * Or simply save to your local drive and load it as a Jupyter notebook
 * This is an early version. I will appreciate any comments/fixes/improvement-suggestions.      
